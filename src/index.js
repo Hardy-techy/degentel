@@ -6,7 +6,7 @@ const { forecastImpermanentLoss } = require('./services/il-math');
 // Helper to map human-readable chain names to GeckoTerminal network
 function getNetworkString(chainName) {
     const name = typeof chainName === 'string' ? chainName.toLowerCase().trim() : String(chainName);
-    
+
     const map = {
         "ethereum": "eth",
         "eth": "eth",
@@ -37,12 +37,12 @@ const client = new AgentClient({
 async function start() {
     try {
         const stream = await client.connectWebSocket();
-        
+
         // Stage 1: Negotiate
-        stream.on('negotiation_requested', async (negotiation) => {
-            console.log(`[Degentel] Negotiation requested by ${negotiation.requester}`);
+        stream.on('order_negotiation_created', async (event) => {
+            console.log(`[Degentel] Negotiation requested by ${event.requester_agent_id}`);
             try {
-                await client.acceptNegotiation(negotiation.id);
+                await client.acceptNegotiation(event.negotiation_id);
                 console.log(`[Degentel] Negotiation accepted. Waiting for on-chain escrow lock...`);
             } catch (error) {
                 console.error(`[Degentel] Failed to accept negotiation:`, error);
@@ -50,11 +50,21 @@ async function start() {
         });
 
         // Stage 2 & 3: Lock -> Deliver
-        stream.on('order_created', async (order) => {
-            console.log(`[Degentel] Order ${order.id} locked on-chain. Routing to appropriate service...`);
+        stream.on('order_paid', async (event) => {
+            console.log(`[Degentel] Order ${event.order_id} locked on-chain. Routing to appropriate service...`);
             
             try {
-                const { network, target_liquidity_pool_address, target_token_address } = order.requirements;
+                const { order } = await client.getOrder(event.order_id);
+                const { negotiation } = await client.getNegotiation(order.negotiationId);
+                
+                let requirements = {};
+                try {
+                    requirements = JSON.parse(negotiation.requirements);
+                } catch(e) {
+                    throw new Error("Failed to parse JSON requirements: " + negotiation.requirements);
+                }
+
+                const { network, target_liquidity_pool_address, target_token_address } = requirements;
 
                 if (!network) {
                     throw new Error("Invalid input: missing network");
@@ -63,7 +73,7 @@ async function start() {
                 const networkStr = getNetworkString(network);
                 let payload = { status: "success" };
 
-                console.log(`[Degentel] Order ${order.id} belongs to Service ID: ${order.serviceId}`);
+                console.log(`[Degentel] Order ${event.order_id} belongs to Service ID: ${order.serviceId}`);
 
                 // Route the request to the correct service logic based on Dashboard Service ID
                 if (order.serviceId === process.env.CROO_SERVICE_IL_FORECAST) {
@@ -89,22 +99,25 @@ async function start() {
                 }
 
                 // Deliver the order back to the CROO Protocol
-                await client.deliverOrder(order.id, payload);
-                console.log(`[Degentel] Successfully fulfilled order ${order.id}. Settling on-chain.`);
+                await client.deliverOrder(event.order_id, {
+                    deliverableType: 'schema',
+                    deliverableText: JSON.stringify(payload)
+                });
+                console.log(`[Degentel] Successfully fulfilled order ${event.order_id}. Settling on-chain.`);
 
             } catch (error) {
-                console.error(`[Degentel] SLA Failure / Internal Error on Order ${order.id}:`, error);
+                console.error(`[Degentel] SLA Failure / Internal Error on Order ${event.order_id}:`, error);
                 
                 // Trigger on-chain refund if the service crashes
                 try {
                     if (typeof client.rejectOrder === 'function') {
-                        await client.rejectOrder(order.id, error.message || "Internal Server Error");
-                        console.log(`[Degentel] Order ${order.id} safely rejected. Escrow refunded.`);
+                        await client.rejectOrder(event.order_id, error.message || "Internal Server Error");
+                        console.log(`[Degentel] Order ${event.order_id} safely rejected. Escrow refunded.`);
                     } else {
-                        console.log(`[Degentel] Order ${order.id} failed. Escrow will auto-refund on timeout.`);
+                        console.log(`[Degentel] Order ${event.order_id} failed. Escrow will auto-refund on timeout.`);
                     }
                 } catch (rejectErr) {
-                    console.error(`[Degentel] Failed to trigger on-chain refund for Order ${order.id}:`, rejectErr);
+                    console.error(`[Degentel] Failed to trigger on-chain refund for Order ${event.order_id}:`, rejectErr);
                 }
             }
         });
