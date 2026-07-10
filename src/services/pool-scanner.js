@@ -15,7 +15,7 @@ async function auditPool(network, poolAddress) {
         const volume24h = parseFloat(pool.volume_usd?.h24) || 0;
         const fdv = parseFloat(pool.fdv_usd) || 0;
         const priceChange24h = parseFloat(pool.price_change_percentage?.h24) || 0;
-        
+
         // Transaction tracking
         const txns = pool.transactions?.h24 || { buys: 0, sells: 0, buyers: 0, sellers: 0 };
         const totalTxns = txns.buys + txns.sells;
@@ -28,7 +28,7 @@ async function auditPool(network, poolAddress) {
 
         // Capital Efficiency = Volume / TVL
         const capitalEfficiency = tvl > 0 ? (volume24h / tvl) : 0;
-        
+
         // Estimate daily fee APY assuming a standard 0.3% pool fee
         const estimatedApy = tvl > 0 ? ((volume24h * 0.003 * 365) / tvl) * 100 : 0;
 
@@ -55,7 +55,7 @@ async function auditPool(network, poolAddress) {
                 estimated_yearly_apy: parseFloat(estimatedApy.toFixed(2)),
                 is_healthy_liquidity: isHealthy
             },
-            summary: `Deep Audit completed for ${pool.name}. Pool is ${ageDays.toFixed(1)} days old with $${(tvl/1000000).toFixed(2)}M TVL. Saw ${totalTxns} transactions in the last 24h. Capital efficiency yields an estimated ${estimatedApy.toFixed(2)}% APY.`
+            summary: `Deep Audit completed for ${pool.name}. Pool is ${ageDays.toFixed(1)} days old with $${(tvl / 1000000).toFixed(2)}M TVL. Saw ${totalTxns} transactions in the last 24h. Capital efficiency yields an estimated ${estimatedApy.toFixed(2)}% APY.`
         };
     } catch (error) {
         throw new Error(`Failed to audit pool on GeckoTerminal: ${error.message}`);
@@ -103,7 +103,7 @@ async function findTopYieldRoutes(network, tokenAddress) {
         sortedPools.forEach((pool, index) => {
             routesString += `${index + 1}. ${pool.name} (${pool.dex})\n`;
             routesString += `   Pool Address: ${pool.pool_address}\n`;
-            routesString += `   TVL: $${pool.tvl_usd.toLocaleString(undefined, {maximumFractionDigits: 0})} | 24h Vol: $${pool.volume_24h_usd.toLocaleString(undefined, {maximumFractionDigits: 0})} | Est. APY: ${pool.estimated_yearly_apy}%\n\n`;
+            routesString += `   TVL: $${pool.tvl_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })} | 24h Vol: $${pool.volume_24h_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })} | Est. APY: ${pool.estimated_yearly_apy}%\n\n`;
         });
 
         return {
@@ -115,7 +115,22 @@ async function findTopYieldRoutes(network, tokenAddress) {
     }
 }
 
+/**
+ * Pre-Negotiation Validation Check
+ * Lightweight check to ensure the pool or token exists on GeckoTerminal before accepting the job.
+ */
+async function validateResource(network, address, isToken = false) {
+    try {
+        const endpoint = isToken ? `tokens/${address}/pools` : `pools/${address}`;
+        await axios.get(`${BASE_URL}/networks/${network}/${endpoint}`);
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
 module.exports = {
     auditPool,
-    findTopYieldRoutes
+    findTopYieldRoutes,
+    validateResource
 };
