@@ -1,0 +1,13 @@
+node_modules/
+.env
+
+# Test scripts and test outputs
+test*
+
+# Ignore all markdown files EXCEPT the README
+*.md
+!README.md
+
+# OS generated files
+.DS_Store
+Thumbs.db
