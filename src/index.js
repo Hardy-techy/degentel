@@ -71,7 +71,7 @@ async function start() {
                 }
 
                 const networkStr = getNetworkString(network);
-                let payload = { status: "success" };
+                let payload;
 
                 console.log(`[Degentel] Order ${event.order_id} belongs to Service ID: ${order.serviceId}`);
 
@@ -79,20 +79,17 @@ async function start() {
                 if (order.serviceId === process.env.CROO_SERVICE_IL_FORECAST) {
                     if (!target_liquidity_pool_address) throw new Error("Missing target_liquidity_pool_address");
                     console.log(`[Degentel] Executing IL Forecaster on ${networkStr} for ${target_liquidity_pool_address}`);
-                    const result = await forecastImpermanentLoss(networkStr, target_liquidity_pool_address);
-                    payload = { ...payload, ...result };
+                    payload = await forecastImpermanentLoss(networkStr, target_liquidity_pool_address);
                 
                 } else if (order.serviceId === process.env.CROO_SERVICE_AUDIT) {
                     if (!target_liquidity_pool_address) throw new Error("Missing target_liquidity_pool_address");
                     console.log(`[Degentel] Executing Deep Liquidity Audit on ${networkStr} for ${target_liquidity_pool_address}`);
-                    const result = await auditPool(networkStr, target_liquidity_pool_address);
-                    payload = { ...payload, ...result };
+                    payload = await auditPool(networkStr, target_liquidity_pool_address);
                     
                 } else if (order.serviceId === process.env.CROO_SERVICE_ROUTE_FINDER) {
                     if (!target_token_address) throw new Error("Missing target_token_address");
                     console.log(`[Degentel] Executing Yield Route Finder on ${networkStr} for ${target_token_address}`);
-                    const result = await findTopYieldRoutes(networkStr, target_token_address);
-                    payload = { ...payload, ...result };
+                    payload = await findTopYieldRoutes(networkStr, target_token_address);
                     
                 } else {
                     throw new Error(`Unrecognized serviceId: ${order.serviceId}. Did you add it to .env?`);
