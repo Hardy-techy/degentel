@@ -54,8 +54,8 @@ async function start() {
             console.log(`[Degentel] Order ${event.order_id} locked on-chain. Routing to appropriate service...`);
             
             try {
-                const { order } = await client.getOrder(event.order_id);
-                const { negotiation } = await client.getNegotiation(order.negotiationId);
+                const order = await client.getOrder(event.order_id);
+                const negotiation = await client.getNegotiation(order.negotiationId);
                 
                 let requirements = {};
                 try {

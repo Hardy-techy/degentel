@@ -12,7 +12,7 @@ async function auditPool(network, poolAddress) {
         const pool = res.data.data.attributes;
 
         const tvl = parseFloat(pool.reserve_in_usd) || 0;
-        const volume24h = parseFloat(pool.volume_usd.h24) || 0;
+        const volume24h = parseFloat(pool.volume_usd?.h24) || 0;
         const fdv = parseFloat(pool.fdv_usd) || 0;
         const priceChange24h = parseFloat(pool.price_change_percentage?.h24) || 0;
         
@@ -82,7 +82,7 @@ async function findTopYieldRoutes(network, tokenAddress) {
         const sortedPools = pools
             .map(p => {
                 const tvl = parseFloat(p.attributes.reserve_in_usd) || 0;
-                const vol = parseFloat(p.attributes.volume_usd.h24) || 0;
+                const vol = parseFloat(p.attributes.volume_usd?.h24) || 0;
                 const apy = tvl > 0 ? ((vol * 0.003 * 365) / tvl) * 100 : 0;
                 return {
                     pool_address: p.attributes.address,
