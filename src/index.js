@@ -30,7 +30,7 @@ function getNetworkString(chainName) {
 }
 
 const client = new AgentClient({
-    apiUrl: process.env.CROO_API_URL,
+    baseURL: process.env.CROO_API_URL,
     wsUrl: process.env.CROO_WS_URL,
     apiKey: process.env.CROO_SDK_KEY
 });
