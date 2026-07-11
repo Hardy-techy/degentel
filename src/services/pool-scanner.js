@@ -80,11 +80,11 @@ async function auditPool(network, poolAddress) {
             liquidity_metrics: {
                 capital_efficiency_score: parseFloat(capitalEfficiency.toFixed(4)),
                 estimated_yearly_apy: parseFloat(estimatedApy.toFixed(2)),
-                is_healthy_liquidity: isHealthy,
-                simulated_5k_slippage_percent: parseFloat(slippagePercent.toFixed(2))
+                is_healthy_liquidity: isHealthy
             },
             
             // Brand NEW upgrades kept at top-level so you can add descriptions
+            simulated_5k_slippage_percent: parseFloat(slippagePercent.toFixed(2)),
             mev_toxicity_score: parseFloat(mevToxicityScore.toFixed(2)),
             fdv_to_tvl_ratio: parseFloat(fdvRatio.toFixed(2)),
             is_fragile_liquidity: isFragile,
