@@ -32,7 +32,32 @@ async function auditPool(network, poolAddress) {
         // Estimate daily fee APY assuming a standard 0.3% pool fee
         const estimatedApy = tvl > 0 ? ((volume24h * 0.003 * 365) / tvl) * 100 : 0;
 
-        const isHealthy = tvl > 10000 && capitalEfficiency > 0.01;
+        // --- NEW: Slippage Simulator (AMM x*y=k) ---
+        // For a 50/50 pool, slippage = trade_size / (pool_balance + trade_size)
+        // Pool balance of one side is TVL / 2
+        const tradeSize = 5000;
+        let slippagePercent = 0;
+        if (tvl > 0) {
+            const sideBalance = tvl / 2;
+            slippagePercent = (tradeSize / (sideBalance + tradeSize)) * 100;
+        }
+
+        // --- NEW: MEV Toxicity Index ---
+        const totalUsers = txns.buyers + txns.sellers;
+        let mevToxicityScore = 0;
+        if (totalTxns > 0 && totalUsers > 0) {
+            // High txns but low unique users = high toxicity (bots)
+            const botRatio = 1 - (totalUsers / totalTxns);
+            mevToxicityScore = Math.max(0, Math.min(100, botRatio * 100));
+        } else if (totalTxns > 0 && totalUsers === 0) {
+            mevToxicityScore = 100; // purely synthetic volume
+        }
+
+        // --- NEW: FDV Fragility ---
+        const fdvRatio = tvl > 0 && fdv > 0 ? (fdv / tvl) : 0;
+        const isFragile = fdvRatio > 100 || mevToxicityScore > 80;
+
+        const isHealthy = tvl > 10000 && capitalEfficiency > 0.01 && slippagePercent < 5 && !isFragile;
 
         return {
             pool_name: pool.name,
@@ -50,12 +75,21 @@ async function auditPool(network, poolAddress) {
                 unique_sellers: txns.sellers,
                 buy_sell_ratio: parseFloat(buySellRatio.toFixed(2))
             },
+            
+            // Restored existing object exactly as it was
             liquidity_metrics: {
                 capital_efficiency_score: parseFloat(capitalEfficiency.toFixed(4)),
                 estimated_yearly_apy: parseFloat(estimatedApy.toFixed(2)),
-                is_healthy_liquidity: isHealthy
+                is_healthy_liquidity: isHealthy,
+                simulated_5k_slippage_percent: parseFloat(slippagePercent.toFixed(2))
             },
-            summary: `Deep Audit completed for ${pool.name}. Pool is ${ageDays.toFixed(1)} days old with $${(tvl / 1000000).toFixed(2)}M TVL. Saw ${totalTxns} transactions in the last 24h. Capital efficiency yields an estimated ${estimatedApy.toFixed(2)}% APY.`
+            
+            // Brand NEW upgrades kept at top-level so you can add descriptions
+            mev_toxicity_score: parseFloat(mevToxicityScore.toFixed(2)),
+            fdv_to_tvl_ratio: parseFloat(fdvRatio.toFixed(2)),
+            is_fragile_liquidity: isFragile,
+
+            summary: `Deep Audit completed for ${pool.name}. Pool is ${ageDays.toFixed(1)} days old with $${(tvl / 1000000).toFixed(2)}M TVL. MEV Toxicity Score: ${mevToxicityScore.toFixed(0)}/100. Simulated $5k trade slippage: ${slippagePercent.toFixed(2)}%.`
         };
     } catch (error) {
         throw new Error(`Failed to audit pool on GeckoTerminal: ${error.message}`);
@@ -78,12 +112,13 @@ async function findTopYieldRoutes(network, tokenAddress) {
             };
         }
 
-        // Rank pools by 24h volume
+        // Rank pools by True APY
         const sortedPools = pools
             .map(p => {
                 const tvl = parseFloat(p.attributes.reserve_in_usd) || 0;
                 const vol = parseFloat(p.attributes.volume_usd?.h24) || 0;
                 const apy = tvl > 0 ? ((vol * 0.003 * 365) / tvl) * 100 : 0;
+                const capitalVelocity = tvl > 0 ? (vol / tvl) : 0;
                 return {
                     pool_address: p.attributes.address,
                     dex: p.relationships && p.relationships.dex && p.relationships.dex.data ? p.relationships.dex.data.id : "unknown",
@@ -91,11 +126,12 @@ async function findTopYieldRoutes(network, tokenAddress) {
                     pool_age_days: parseFloat(((Date.now() - new Date(p.attributes.pool_created_at).getTime()) / (1000 * 60 * 60 * 24)).toFixed(1)),
                     tvl_usd: tvl,
                     volume_24h_usd: vol,
-                    estimated_yearly_apy: parseFloat(apy.toFixed(2))
+                    estimated_yearly_apy: parseFloat(apy.toFixed(2)),
+                    capital_velocity: parseFloat(capitalVelocity.toFixed(4))
                 };
             })
             .filter(p => p.tvl_usd > 1000) // Filter out dust pools
-            .sort((a, b) => b.volume_24h_usd - a.volume_24h_usd)
+            .sort((a, b) => b.estimated_yearly_apy - a.estimated_yearly_apy) // Sort by APY, not Volume
             .slice(0, 3); // Top 3
 
         // Build a highly readable, beautiful text output
@@ -103,7 +139,7 @@ async function findTopYieldRoutes(network, tokenAddress) {
         sortedPools.forEach((pool, index) => {
             routesString += `${index + 1}. ${pool.name} (${pool.dex})\n`;
             routesString += `   Pool Address: ${pool.pool_address}\n`;
-            routesString += `   TVL: $${pool.tvl_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })} | 24h Vol: $${pool.volume_24h_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })} | Est. APY: ${pool.estimated_yearly_apy}%\n\n`;
+            routesString += `   TVL: $${pool.tvl_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })} | True APY: ${pool.estimated_yearly_apy}% | Cap Velocity: ${pool.capital_velocity}\n\n`;
         });
 
         return {

@@ -47,7 +47,7 @@ async function start() {
                 let requirements = {};
                 try {
                     requirements = JSON.parse(negotiation.requirements);
-                } catch(e) {
+                } catch (e) {
                     await client.rejectNegotiation(event.negotiation_id, "Invalid JSON requirements");
                     return;
                 }
@@ -61,11 +61,11 @@ async function start() {
                 let networkStr;
                 try {
                     networkStr = getNetworkString(network);
-                } catch(e) {
+                } catch (e) {
                     await client.rejectNegotiation(event.negotiation_id, "Unsupported network");
                     return;
                 }
-                
+
                 // 2. Validate the specific inputs against GeckoTerminal
                 let isValid = false;
                 if (target_liquidity_pool_address) {
@@ -95,15 +95,15 @@ async function start() {
         // Stage 2 & 3: Lock -> Deliver
         stream.on('order_paid', async (event) => {
             console.log(`[Degentel] Order ${event.order_id} locked on-chain. Routing to appropriate service...`);
-            
+
             try {
                 const order = await client.getOrder(event.order_id);
                 const negotiation = await client.getNegotiation(order.negotiationId);
-                
+
                 let requirements = {};
                 try {
                     requirements = JSON.parse(negotiation.requirements);
-                } catch(e) {
+                } catch (e) {
                     throw new Error("Failed to parse JSON requirements: " + negotiation.requirements);
                 }
 
@@ -123,17 +123,17 @@ async function start() {
                     if (!target_liquidity_pool_address) throw new Error("Missing target_liquidity_pool_address");
                     console.log(`[Degentel] Executing IL Forecaster on ${networkStr} for ${target_liquidity_pool_address}`);
                     payload = await forecastImpermanentLoss(networkStr, target_liquidity_pool_address);
-                
+
                 } else if (order.serviceId === process.env.CROO_SERVICE_AUDIT) {
                     if (!target_liquidity_pool_address) throw new Error("Missing target_liquidity_pool_address");
                     console.log(`[Degentel] Executing Deep Liquidity Audit on ${networkStr} for ${target_liquidity_pool_address}`);
                     payload = await auditPool(networkStr, target_liquidity_pool_address);
-                    
+
                 } else if (order.serviceId === process.env.CROO_SERVICE_ROUTE_FINDER) {
                     if (!target_token_address) throw new Error("Missing target_token_address");
                     console.log(`[Degentel] Executing Yield Route Finder on ${networkStr} for ${target_token_address}`);
                     payload = await findTopYieldRoutes(networkStr, target_token_address);
-                    
+
                 } else {
                     throw new Error(`Unrecognized serviceId: ${order.serviceId}. Did you add it to .env?`);
                 }
@@ -147,7 +147,7 @@ async function start() {
 
             } catch (error) {
                 console.error(`[Degentel] SLA Failure / Internal Error on Order ${event.order_id}:`, error);
-                
+
                 // Trigger on-chain refund if the service crashes
                 try {
                     if (typeof client.rejectOrder === 'function') {
