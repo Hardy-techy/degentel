@@ -134,17 +134,15 @@ async function findTopYieldRoutes(network, tokenAddress) {
             .sort((a, b) => b.estimated_yearly_apy - a.estimated_yearly_apy) // Sort by APY, not Volume
             .slice(0, 3); // Top 3
 
-        // Build a highly readable, beautiful text output
-        let routesString = "";
+        // Build a highly readable object format to avoid arrays but maintain clean JSON
+        const routesObj = {};
         sortedPools.forEach((pool, index) => {
-            routesString += `${index + 1}. ${pool.name} (${pool.dex})\n`;
-            routesString += `   Pool Address: ${pool.pool_address}\n`;
-            routesString += `   TVL: $${pool.tvl_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })} | True APY: ${pool.estimated_yearly_apy}% | Cap Velocity: ${pool.capital_velocity}\n\n`;
+            routesObj[`route_${index + 1}`] = `DEX: ${pool.dex} | Pool: ${pool.name} | Address: ${pool.pool_address} | TVL: $${pool.tvl_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })} | True APY: ${pool.estimated_yearly_apy}% | Cap Velocity: ${pool.capital_velocity}`;
         });
 
         return {
             summary: "Scanned all DEXes. Found " + sortedPools.length + " viable high-volume liquidity routes.",
-            routes: routesString.trim()
+            routes: routesObj
         };
     } catch (error) {
         throw new Error(`Failed to find yield routes on GeckoTerminal: ${error.message}`);
