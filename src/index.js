@@ -17,13 +17,11 @@ function getNetworkString(chainName) {
         "matic": "polygon",
         "bsc": "bsc",
         "binance": "bsc",
-        "binance smart chain": "bsc",
-        "solana": "solana",
-        "sol": "solana"
+        "binance smart chain": "bsc"
     };
 
     if (!map[name]) {
-        throw new Error(`Unrecognized network: '${chainName}'. Please use a supported chain: ethereum, base, bsc, solana, arbitrum, or polygon.`);
+        throw new Error(`Unrecognized network: '${chainName}'. Please use a supported chain: ethereum, base, bsc, arbitrum, or polygon.`);
     }
 
     return map[name];
